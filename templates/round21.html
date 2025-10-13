@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Round21 Barcode Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Round21 Barcode Generator</h1>
+        
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for message in messages %}
+                        <div class="flash-message">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
+            <label class="block">Upload Spreadsheet (XLSX or CSV):</label>
+            <input type="file" name="file" required>
+
+            <div class="section">
+                <label class="block">
+                    <input type="checkbox" name="include_price" value="1">
+                    Include Price
+                </label>
+                <div class="hint">If checked, prices from Column K of the spreadsheet will be displayed on each label.</div>
+            </div>
+
+            <div class="section">
+                <label class="block">
+                    <input type="checkbox" name="hot_market" value="1">
+                    Hot Market
+                </label>
+                <div class="hint">If checked, uses Hot Market format with 3 text rows and no price display.</div>
+            </div>
+
+            <button type="submit">Generate Labels</button>
+        </form>
+
+        <div class="info-section">
+            <h3>Round21 Format Requirements:</h3>
+            <ul>
+                <li><strong>File Format:</strong> XLSX or CSV spreadsheet</li>
+                <li><strong>Column A:</strong> Title</li>
+                <li><strong>Column B:</strong> SKU</li>
+                <li><strong>Column C:</strong> Color</li>
+                <li><strong>Column D:</strong> UPC</li>
+                <li><strong>Column K:</strong> Price (optional)</li>
+            </ul>
+            <p><strong>Output:</strong> UPC-A barcodes with title, SKU, color, and optional price</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Results</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>Labels Ready</h1>
+
+    <p>Total labels: <strong>{{ count }}</strong></p>
+    {% if include_price %}
+      <p>Price line: <strong>included from Column K</strong></p>
+    {% else %}
+      <p>Price line: <strong>not included</strong></p>
+    {% endif %}
+
+    <div class="actions">
+      <a class="btn" href="{{ pdf_path }}">Download PDF</a>
+      <a class="btn" href="{{ zip_path }}">Download PNG ZIP</a>
+      <a class="btn secondary" href="{{ url_for('index') }}">Generate Another</a>
+      <a class="btn" href="{{ url_for('save_labels', job=job) }}">Save Labels</a>
+    </div>
+
+    {% if sample_pngs %}
+    <h2>Previews</h2>
+    <div class="grid">
+      {% for p in sample_pngs %}
+        <div class="card"><img src="{{ p }}" alt="label preview"></div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</body>
+</html>
+

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hunter Harms Barcode Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Hunter Harms Barcode Generator</h1>
+        
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for message in messages %}
+                        <div class="flash-message">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
+            <label class="block">Upload PDF:</label>
+            <input type="file" name="file" accept=".pdf" required>
+
+            <div class="button-spacing"></div>
+            <button type="submit">Generate Labels</button>
+        </form>
+
+        <div class="info-section">
+            <h3>Hunter Harms Format Requirements:</h3>
+            <ul>
+                <li><strong>File Format:</strong> PDF document</li>
+                <li><strong>Column 1:</strong> Title (Row 1 of barcode)</li>
+                <li><strong>Column 4:</strong> SKUs (separated by newlines)</li>
+                <li><strong>Column 6:</strong> Color</li>
+                <li><strong>Columns 7-12:</strong> Size quantities (S, M, L, XL, 2XL, 3XL)</li>
+            </ul>
+            <p><strong>Output:</strong> Code 128 barcodes with title, SKU, and size extracted from SKU</p>
+            <p><strong>Note:</strong> Each SKU generates one barcode. Size is automatically extracted from the SKU string.</p>
+        </div>
+    </div>
+</body>
+</html>
