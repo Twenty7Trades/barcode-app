@@ -217,17 +217,16 @@ def render_hot_market_label(
     col_b_w = draw.textbbox((0, 0), col_b_txt, font=row2_font)[2]
     
     if col_b_w <= max_width:
-        # Text fits on one line - center it
-        draw.text(((canvas_w - col_b_w) // 2, row2_y), col_b_txt, font=row2_font, fill="black")
+        # Text fits on one line - left-align it to use full width
+        draw.text((text_margin, row2_y), col_b_txt, font=row2_font, fill="black")
         row2_actual_height = 60  # Single line height
     else:
         # Text too long - split into multiple lines
         words = col_b_txt.split()
         if len(words) <= 1:
-            # Single word too long - truncate
+            # Single word too long - truncate and left-align
             truncated = col_b_txt[:40] + "..." if len(col_b_txt) > 40 else col_b_txt
-            truncated_w = draw.textbbox((0, 0), truncated, font=row2_font)[2]
-            draw.text(((canvas_w - truncated_w) // 2, row2_y), truncated, font=row2_font, fill="black")
+            draw.text((text_margin, row2_y), truncated, font=row2_font, fill="black")
             row2_actual_height = 60
         else:
             # Force text into exactly 3 lines for better space utilization
@@ -249,10 +248,9 @@ def render_hot_market_label(
                     lines.append(" ".join(words[start_idx:end_idx]))
                     start_idx = end_idx
             
-            # Draw the lines (centered)
+            # Draw the lines (left-aligned to use full width)
             for i, line in enumerate(lines):
-                line_w = draw.textbbox((0, 0), line, font=row2_font)[2]
-                draw.text(((canvas_w - line_w) // 2, row2_y + i * 60), line, font=row2_font, fill="black")
+                draw.text((text_margin, row2_y + i * 60), line, font=row2_font, fill="black")
             
             row2_actual_height = len(lines) * 60  # Dynamic height based on number of lines
 
@@ -264,9 +262,9 @@ def render_hot_market_label(
     row3_w = draw.textbbox((0, 0), row3_text, font=row3_font)[2]
     draw.text(((canvas_w - row3_w) // 2, row3_y), row3_text, font=row3_font, fill="black")
 
-    # Barcode area - positioned below row 3, made smaller to fit longer text
-    bar_top = row3_y + 100  # Reduced spacing from Row 3
-    bar_bottom = canvas_h - 120  # Reduced bottom margin to make barcode smaller
+    # Barcode area - positioned below row 3, much smaller height to fit everything
+    bar_top = row3_y + 80  # Reduced spacing from Row 3
+    bar_bottom = canvas_h - 100  # Much smaller bottom margin for shorter barcode
     bar_height = bar_bottom - bar_top
 
     modules = len(pattern)  # 95
