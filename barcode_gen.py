@@ -267,7 +267,7 @@ def render_hot_market_label(
     # Barcode area - positioned below row 3, move down more and give more height
     bar_top = row3_y + 100  # More spacing from Row 3 to avoid covering it
     # Give the barcode more height now that it's positioned correctly
-    bar_bottom = bar_top + 120  # More height for barcode bars (120px tall)
+    bar_bottom = bar_top + 280  # Much more height for barcode bars (280px tall)
     bar_height = bar_bottom - bar_top
 
     modules = len(pattern)  # 95
