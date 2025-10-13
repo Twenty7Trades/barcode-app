@@ -265,15 +265,12 @@ def render_hot_market_label(
     draw.text(((canvas_w - row3_w) // 2, row3_y), row3_text, font=row3_font, fill="black")
 
     # Barcode area - positioned below row 3, much smaller height to fit everything
-    bar_top = row3_y + 80  # Reduced spacing from Row 3
-    bar_bottom = canvas_h - 100  # Much smaller bottom margin for shorter barcode
+    bar_top = row3_y + 60  # Reduced spacing from Row 3
+    bar_bottom = canvas_h - 80  # Much smaller bottom margin for shorter barcode height
     bar_height = bar_bottom - bar_top
 
     modules = len(pattern)  # 95
-    # Make barcode width smaller with more padding on sides
-    barcode_padding = 300  # More padding for smaller barcode width
-    available_width = canvas_w - 2 * barcode_padding
-    module_w = int(max(1, math.floor(available_width / modules)))
+    module_w = int(max(1, math.floor((canvas_w - 2 * margin) / modules)))
     total_w = module_w * modules
     x0 = (canvas_w - total_w) // 2
 
