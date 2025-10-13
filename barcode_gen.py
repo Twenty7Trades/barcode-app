@@ -230,31 +230,12 @@ def render_hot_market_label(
             draw.text(((canvas_w - truncated_w) // 2, row2_y), truncated, font=row2_font, fill="black")
             row2_actual_height = 60
         else:
-            # Try to fit text into 2 or 3 lines
-            lines = []
-            current_line = []
-            current_width = 0
-            
-            for word in words:
-                test_line = " ".join(current_line + [word])
-                test_width = draw.textbbox((0, 0), test_line, font=row2_font)[2]
-                
-                if test_width <= max_width and len(lines) < 2:  # Allow up to 3 lines total
-                    current_line.append(word)
-                    current_width = test_width
-                else:
-                    if current_line:
-                        lines.append(" ".join(current_line))
-                    current_line = [word]
-                    current_width = draw.textbbox((0, 0), word, font=row2_font)[2]
-            
-            # Add the last line
-            if current_line:
-                lines.append(" ".join(current_line))
-            
-            # If we still have too many lines, force into 3 lines
-            if len(lines) > 3:
-                # Redistribute words more evenly across 3 lines
+            # Force text into exactly 3 lines for better space utilization
+            if len(words) <= 3:
+                # Few words - one per line
+                lines = words
+            else:
+                # Many words - distribute evenly across 3 lines
                 words_per_line = len(words) // 3
                 remainder = len(words) % 3
                 
@@ -279,13 +260,13 @@ def render_hot_market_label(
     col_a_txt = (col_a or "").strip().upper()
     col_e_txt = (col_e or "").strip().upper()
     row3_text = f"{col_a_txt}-{col_e_txt}" if col_a_txt and col_e_txt else (col_a_txt or col_e_txt)
-    row3_y = row2_y + row2_actual_height + 20  # Dynamic spacing based on Row 2 height
+    row3_y = row2_y + row2_actual_height + 40  # More spacing between Row 2 and Row 3
     row3_w = draw.textbbox((0, 0), row3_text, font=row3_font)[2]
     draw.text(((canvas_w - row3_w) // 2, row3_y), row3_text, font=row3_font, fill="black")
 
-    # Barcode area - positioned below row 3
-    bar_top = row3_y + 120
-    bar_bottom = canvas_h - 150  # No price, so less bottom margin needed
+    # Barcode area - positioned below row 3, made smaller to fit longer text
+    bar_top = row3_y + 100  # Reduced spacing from Row 3
+    bar_bottom = canvas_h - 120  # Reduced bottom margin to make barcode smaller
     bar_height = bar_bottom - bar_top
 
     modules = len(pattern)  # 95
