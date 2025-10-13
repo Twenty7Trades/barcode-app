@@ -192,7 +192,7 @@ def render_hot_market_label(
 
     # Fonts - similar to Round21 but adjusted for 3 rows
     row1_font = _load_font(100)
-    row2_font = _load_font(95)
+    row2_font = _load_font(60)  # Much smaller font for Row 2
     row3_font = _load_font(90)
     digits_font = _load_font(80)
 
@@ -205,17 +205,46 @@ def render_hot_market_label(
     col_c_w = draw.textbbox((0, 0), col_c_txt, font=row1_font)[2]
     draw.text((canvas_w - margin - col_c_w, row1_y), col_c_txt, font=row1_font, fill="black")
 
-    # Row 2: Column B (centered)
+    # Row 2: Column B (centered, with text wrapping to 2 lines)
     col_b_txt = (col_b or "").strip().upper()
     row2_y = row1_y + 120
+    
+    # Check if text fits on one line, if not split into 2 lines
     col_b_w = draw.textbbox((0, 0), col_b_txt, font=row2_font)[2]
-    draw.text(((canvas_w - col_b_w) // 2, row2_y), col_b_txt, font=row2_font, fill="black")
+    max_width = canvas_w - 2 * margin  # Available width for text
+    
+    if col_b_w <= max_width:
+        # Text fits on one line - center it
+        draw.text(((canvas_w - col_b_w) // 2, row2_y), col_b_txt, font=row2_font, fill="black")
+        row2_actual_height = 60  # Single line height
+    else:
+        # Text too long - split into 2 lines
+        words = col_b_txt.split()
+        if len(words) <= 1:
+            # Single word too long - truncate
+            truncated = col_b_txt[:30] + "..." if len(col_b_txt) > 30 else col_b_txt
+            truncated_w = draw.textbbox((0, 0), truncated, font=row2_font)[2]
+            draw.text(((canvas_w - truncated_w) // 2, row2_y), truncated, font=row2_font, fill="black")
+            row2_actual_height = 60
+        else:
+            # Split words into 2 lines
+            mid = len(words) // 2
+            line1 = " ".join(words[:mid])
+            line2 = " ".join(words[mid:])
+            
+            # Center each line
+            line1_w = draw.textbbox((0, 0), line1, font=row2_font)[2]
+            line2_w = draw.textbbox((0, 0), line2, font=row2_font)[2]
+            
+            draw.text(((canvas_w - line1_w) // 2, row2_y), line1, font=row2_font, fill="black")
+            draw.text(((canvas_w - line2_w) // 2, row2_y + 60), line2, font=row2_font, fill="black")
+            row2_actual_height = 120  # Two lines height
 
     # Row 3: Column A - Column E (centered)
     col_a_txt = (col_a or "").strip().upper()
     col_e_txt = (col_e or "").strip().upper()
     row3_text = f"{col_a_txt}-{col_e_txt}" if col_a_txt and col_e_txt else (col_a_txt or col_e_txt)
-    row3_y = row2_y + 120
+    row3_y = row2_y + row2_actual_height + 20  # Dynamic spacing based on Row 2 height
     row3_w = draw.textbbox((0, 0), row3_text, font=row3_font)[2]
     draw.text(((canvas_w - row3_w) // 2, row3_y), row3_text, font=row3_font, fill="black")
 
