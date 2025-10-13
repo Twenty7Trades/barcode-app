@@ -260,7 +260,7 @@ def render_hot_market_label(
     col_a_txt = (col_a or "").strip().upper()
     col_e_txt = (col_e or "").strip().upper()
     row3_text = f"{col_a_txt}-{col_e_txt}" if col_a_txt and col_e_txt else (col_a_txt or col_e_txt)
-    row3_y = row2_y + row2_actual_height + 20  # Reduced spacing between Row 2 and Row 3
+    row3_y = row2_y + row2_actual_height + 10  # Much closer to Row 2
     row3_w = draw.textbbox((0, 0), row3_text, font=row3_font)[2]
     draw.text(((canvas_w - row3_w) // 2, row3_y), row3_text, font=row3_font, fill="black")
 
@@ -270,7 +270,10 @@ def render_hot_market_label(
     bar_height = bar_bottom - bar_top
 
     modules = len(pattern)  # 95
-    module_w = int(max(1, math.floor((canvas_w - 2 * margin) / modules)))
+    # Make barcode width smaller with more padding on sides
+    barcode_padding = 300  # More padding for smaller barcode width
+    available_width = canvas_w - 2 * barcode_padding
+    module_w = int(max(1, math.floor(available_width / modules)))
     total_w = module_w * modules
     x0 = (canvas_w - total_w) // 2
 
