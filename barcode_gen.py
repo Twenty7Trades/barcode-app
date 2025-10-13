@@ -264,10 +264,10 @@ def render_hot_market_label(
     row3_w = draw.textbbox((0, 0), row3_text, font=row3_font)[2]
     draw.text(((canvas_w - row3_w) // 2, row3_y), row3_text, font=row3_font, fill="black")
 
-    # Barcode area - positioned below row 3, make actual barcode bars much shorter
-    bar_top = row3_y + 60  # Normal spacing from Row 3
-    # Make the actual scannable barcode much shorter by reducing bar_bottom
-    bar_bottom = bar_top + 80  # Fixed short height for barcode bars (80px tall)
+    # Barcode area - positioned below row 3, move down more and give more height
+    bar_top = row3_y + 100  # More spacing from Row 3 to avoid covering it
+    # Give the barcode more height now that it's positioned correctly
+    bar_bottom = bar_top + 120  # More height for barcode bars (120px tall)
     bar_height = bar_bottom - bar_top
 
     modules = len(pattern)  # 95
