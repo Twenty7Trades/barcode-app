@@ -205,40 +205,75 @@ def render_hot_market_label(
     col_c_w = draw.textbbox((0, 0), col_c_txt, font=row1_font)[2]
     draw.text((canvas_w - margin - col_c_w, row1_y), col_c_txt, font=row1_font, fill="black")
 
-    # Row 2: Column B (centered, with text wrapping to 2 lines)
+    # Row 2: Column B (centered, with text wrapping up to 3 lines using full width)
     col_b_txt = (col_b or "").strip().upper()
     row2_y = row1_y + 120
     
-    # Check if text fits on one line, if not split into 2 lines
+    # Use full width for text wrapping (with small margins)
+    text_margin = 20  # Small margin for text
+    max_width = canvas_w - 2 * text_margin  # Full width available for text
+    
+    # Check if text fits on one line
     col_b_w = draw.textbbox((0, 0), col_b_txt, font=row2_font)[2]
-    max_width = canvas_w - 2 * margin  # Available width for text
     
     if col_b_w <= max_width:
         # Text fits on one line - center it
         draw.text(((canvas_w - col_b_w) // 2, row2_y), col_b_txt, font=row2_font, fill="black")
         row2_actual_height = 60  # Single line height
     else:
-        # Text too long - split into 2 lines
+        # Text too long - split into multiple lines
         words = col_b_txt.split()
         if len(words) <= 1:
             # Single word too long - truncate
-            truncated = col_b_txt[:30] + "..." if len(col_b_txt) > 30 else col_b_txt
+            truncated = col_b_txt[:40] + "..." if len(col_b_txt) > 40 else col_b_txt
             truncated_w = draw.textbbox((0, 0), truncated, font=row2_font)[2]
             draw.text(((canvas_w - truncated_w) // 2, row2_y), truncated, font=row2_font, fill="black")
             row2_actual_height = 60
         else:
-            # Split words into 2 lines
-            mid = len(words) // 2
-            line1 = " ".join(words[:mid])
-            line2 = " ".join(words[mid:])
+            # Try to fit text into 2 or 3 lines
+            lines = []
+            current_line = []
+            current_width = 0
             
-            # Center each line
-            line1_w = draw.textbbox((0, 0), line1, font=row2_font)[2]
-            line2_w = draw.textbbox((0, 0), line2, font=row2_font)[2]
+            for word in words:
+                test_line = " ".join(current_line + [word])
+                test_width = draw.textbbox((0, 0), test_line, font=row2_font)[2]
+                
+                if test_width <= max_width and len(lines) < 2:  # Allow up to 3 lines total
+                    current_line.append(word)
+                    current_width = test_width
+                else:
+                    if current_line:
+                        lines.append(" ".join(current_line))
+                    current_line = [word]
+                    current_width = draw.textbbox((0, 0), word, font=row2_font)[2]
             
-            draw.text(((canvas_w - line1_w) // 2, row2_y), line1, font=row2_font, fill="black")
-            draw.text(((canvas_w - line2_w) // 2, row2_y + 60), line2, font=row2_font, fill="black")
-            row2_actual_height = 120  # Two lines height
+            # Add the last line
+            if current_line:
+                lines.append(" ".join(current_line))
+            
+            # If we still have too many lines, force into 3 lines
+            if len(lines) > 3:
+                # Redistribute words more evenly across 3 lines
+                words_per_line = len(words) // 3
+                remainder = len(words) % 3
+                
+                lines = []
+                start_idx = 0
+                for i in range(3):
+                    if i < remainder:
+                        end_idx = start_idx + words_per_line + 1
+                    else:
+                        end_idx = start_idx + words_per_line
+                    lines.append(" ".join(words[start_idx:end_idx]))
+                    start_idx = end_idx
+            
+            # Draw the lines (centered)
+            for i, line in enumerate(lines):
+                line_w = draw.textbbox((0, 0), line, font=row2_font)[2]
+                draw.text(((canvas_w - line_w) // 2, row2_y + i * 60), line, font=row2_font, fill="black")
+            
+            row2_actual_height = len(lines) * 60  # Dynamic height based on number of lines
 
     # Row 3: Column A - Column E (centered)
     col_a_txt = (col_a or "").strip().upper()
