@@ -66,3 +66,24 @@ test_*.pdf
 # Deployment artifacts
 *.tar.gz
 *.zip
+
+# SSH Keys and sensitive files (but NOT connect_server.sh - it's safe to commit)
+*.pem
+*.key
+*key.pem
+*ec2*.pem
+*aws*.pem
+*.ppk
+
+# Private documentation (contains sensitive connection info)
+STARTUP_GUIDE.md
+CONNECTION_PROCESS.md
+ADD_KEY_TO_SERVER.md
+ADD_KEY_VIA_AWS_CONSOLE.md
+AWS_CONNECTION_TROUBLESHOOTING.md
+find_ssh_key.sh
+test_connection.sh
+
+# Backup scripts (can be committed, but may contain paths)
+# backup_saved_labels.sh
+

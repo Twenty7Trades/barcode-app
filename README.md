@@ -27,4 +27,19 @@ pip install -r requirements.txt
 export FLASK_SECRET_KEY="change-me"
 python app.py
 # open http://localhost:5000
+```
+
+## Server Connection
+
+For connecting to the production server, see **[SERVER_CONNECTION.md](SERVER_CONNECTION.md)**
+
+Quick connect:
+```bash
+./connect_server.sh
+```
+
+Or manually:
+```bash
+ssh -i ~/.ssh/lambda-layer-key.pem ec2-user@18.220.30.5
+```
 

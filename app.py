@@ -19,8 +19,10 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret")  # set in prod
 OUTPUT_DIR = os.environ.get("OUTPUT_DIR", os.path.join(tempfile.gettempdir(), "barcode_app"))
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Storage for saved labels
-SAVED_LABELS_DIR = os.environ.get("SAVED_LABELS_DIR", os.path.join(tempfile.gettempdir(), "barcode_app_saved"))
+# Storage for saved labels - use persistent directory
+# Default to app directory to prevent data loss on reboot
+DEFAULT_SAVED_LABELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_labels")
+SAVED_LABELS_DIR = os.environ.get("SAVED_LABELS_DIR", DEFAULT_SAVED_LABELS_DIR)
 os.makedirs(SAVED_LABELS_DIR, exist_ok=True)
 
 
@@ -59,6 +61,7 @@ def upload():
     
     include_price = bool(request.form.get("include_price"))
     hot_market = bool(request.form.get("hot_market"))
+    bda_format = bool(request.form.get("bda_format"))
 
     # Save upload to temp
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S_%f")
@@ -78,7 +81,8 @@ def upload():
             include_price=include_price,
             price_value=None,  # Individual prices now come from Column K
             out_dir=session_dir,
-            hot_market=hot_market
+            hot_market=hot_market,
+            bda_format=bda_format
         )
     except Exception as e:
         # Be explicit so debugging doesn't eat your life.

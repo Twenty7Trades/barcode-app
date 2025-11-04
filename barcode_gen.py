@@ -295,6 +295,168 @@ def render_hot_market_label(
     return upc12, out_path
 
 
+def render_bda_label(
+    col_k: str,
+    col_c: str,
+    col_b: str,
+    col_l: str,
+    col_e: str,
+    col_j: str,
+    upc_input: str,
+    out_path: str,
+    canvas_w: int = 1400,
+    canvas_h: int = 900,
+    margin: int = 40
+):
+    """
+    Render BDA format label:
+    - Row 1: Column K (left) + Column C (right)
+    - Row 2: Column L - Column E (centered, hyphenated)
+    - Row 3: Column B (centered, text wraps up to 3 lines if needed)
+    - Bottom: UPC-A barcode (from Column I)
+    - Below barcode: Column J (centered)
+    """
+    # Build UPC-12 robustly from 11 or 12 digits
+    digits = ''.join(c for c in str(upc_input) if c.isdigit())
+    if len(digits) == 11:
+        upc12 = digits + upc_check_digit(digits)
+    elif len(digits) == 12:
+        upc12 = digits
+    else:
+        raise ValueError(f"UPC must have 11 or 12 digits, got '{upc_input}'")
+    pattern = encode_upc(upc12)
+
+    # Canvas
+    img = Image.new("RGB", (canvas_w, canvas_h), "white")
+    draw = ImageDraw.Draw(img)
+
+    # Fonts - similar to Hot Market
+    row1_font = _load_font(100)
+    row2_font = _load_font(75)  # Slightly bigger font for Row 2
+    row3_font = _load_font(70)  # Smaller font for Row 3 (wrapping text)
+    digits_font = _load_font(80)
+    col_j_font = _load_font(70)  # Font for Column J below barcode
+
+    # Row 1: Column K (left) + Column C (right)
+    col_k_txt = (col_k or "").strip().upper()
+    col_c_txt = (col_c or "").strip().upper()
+    row1_y = margin
+    
+    draw.text((margin, row1_y), col_k_txt, font=row1_font, fill="black")
+    col_c_w = draw.textbbox((0, 0), col_c_txt, font=row1_font)[2]
+    draw.text((canvas_w - margin - col_c_w, row1_y), col_c_txt, font=row1_font, fill="black")
+
+    # Row 2: Column L - Column E (centered, hyphenated)
+    col_l_txt = (col_l or "").strip().upper()
+    col_e_txt = (col_e or "").strip().upper()
+    row2_text = f"{col_l_txt}-{col_e_txt}" if col_l_txt and col_e_txt else (col_l_txt or col_e_txt)
+    row2_y = row1_y + 120
+    row2_w = draw.textbbox((0, 0), row2_text, font=row2_font)[2]
+    draw.text(((canvas_w - row2_w) // 2, row2_y), row2_text, font=row2_font, fill="black")
+
+    # Row 3: Column B (centered, with text wrapping up to 3 lines using full width)
+    col_b_txt = (col_b or "").strip().upper()
+    row3_y = row2_y + 90  # Reduced spacing to move barcode up
+    
+    # Use full width for text wrapping (with small margins)
+    text_margin = 20  # Small margin for text
+    max_width = canvas_w - 2 * text_margin  # Full width available for text
+    
+    # Check if text fits on one line
+    col_b_w = draw.textbbox((0, 0), col_b_txt, font=row3_font)[2]
+    
+    if col_b_w <= max_width:
+        # Text fits on one line - center it
+        draw.text(((canvas_w - col_b_w) // 2, row3_y), col_b_txt, font=row3_font, fill="black")
+        row3_actual_height = 60  # Single line height
+    else:
+        # Text too long - split into multiple lines
+        words = col_b_txt.split()
+        if len(words) <= 1:
+            # Single word too long - truncate and center
+            truncated = col_b_txt[:40] + "..." if len(col_b_txt) > 40 else col_b_txt
+            truncated_w = draw.textbbox((0, 0), truncated, font=row3_font)[2]
+            draw.text(((canvas_w - truncated_w) // 2, row3_y), truncated, font=row3_font, fill="black")
+            row3_actual_height = 60
+        else:
+            # Force text into exactly 3 lines for better space utilization
+            if len(words) <= 3:
+                # Few words - one per line
+                lines = words
+            else:
+                # Many words - distribute evenly across 3 lines
+                words_per_line = len(words) // 3
+                remainder = len(words) % 3
+                
+                lines = []
+                start_idx = 0
+                for i in range(3):
+                    if i < remainder:
+                        end_idx = start_idx + words_per_line + 1
+                    else:
+                        end_idx = start_idx + words_per_line
+                    lines.append(" ".join(words[start_idx:end_idx]))
+                    start_idx = end_idx
+            
+            # Draw the lines (centered)
+            for i, line in enumerate(lines):
+                line_w = draw.textbbox((0, 0), line, font=row3_font)[2]
+                draw.text(((canvas_w - line_w) // 2, row3_y + i * 60), line, font=row3_font, fill="black")
+            
+            row3_actual_height = len(lines) * 60  # Dynamic height based on number of lines
+
+    # Barcode area - positioned below row 3 (moved up)
+    bar_top = row3_y + row3_actual_height + 70  # Reduced spacing from Row 3 to move barcode up
+    bar_bottom = bar_top + 280  # Height for barcode bars (280px tall)
+    bar_height = bar_bottom - bar_top
+
+    modules = len(pattern)  # 95
+    module_w = int(max(1, math.floor((canvas_w - 2 * margin) / modules)))
+    total_w = module_w * modules
+    x0 = (canvas_w - total_w) // 2
+
+    guard_extra = int(bar_height * 0.12)
+
+    for i, bit in enumerate(pattern):
+        if bit == '1':
+            is_guard = (i < 3) or (45 <= i < 50) or (modules - 3 <= i < modules)
+            top = bar_top
+            bottom = bar_bottom + (guard_extra if is_guard else 0)
+            draw.rectangle([x0 + i * module_w, top, x0 + (i + 1) * module_w - 1, bottom], fill="black")
+
+    # Human-readable digits centered
+    hr = f"{upc12[0]}  {upc12[1:6]}  {upc12[6:11]}  {upc12[11]}"
+    hr_w = draw.textbbox((0, 0), hr, font=digits_font)[2]
+    digits_y = bar_bottom + guard_extra + 10
+    draw.text(((canvas_w - hr_w) // 2, digits_y), hr, font=digits_font, fill="black")
+
+    # Column J below barcode (centered, formatted as currency)
+    col_j_value = (col_j or "").strip()
+    # Format as currency: convert to number and format as $XX.XX
+    try:
+        # Try to parse as number
+        num_value = float(str(col_j_value).replace('$', '').replace(',', '').strip())
+        col_j_txt = f"${num_value:.2f}"
+    except (ValueError, TypeError):
+        # If not a number, use as-is (might already be formatted)
+        if col_j_value and not col_j_value.startswith('$'):
+            try:
+                num_value = float(col_j_value.replace(',', '').strip())
+                col_j_txt = f"${num_value:.2f}"
+            except (ValueError, TypeError):
+                col_j_txt = col_j_value.upper()
+        else:
+            col_j_txt = col_j_value.upper()
+    
+    col_j_y = digits_y + 80  # Spacing below UPC digits
+    col_j_w = draw.textbbox((0, 0), col_j_txt, font=col_j_font)[2]
+    draw.text(((canvas_w - col_j_w) // 2, col_j_y), col_j_txt, font=col_j_font, fill="black")
+
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    img.save(out_path, "PNG")
+    return upc12, out_path
+
+
 # ---------------- Spreadsheet parsing for formats ----------------
 
 def _parse_round21(path: str) -> list[dict]:
@@ -345,6 +507,11 @@ def _parse_round21(path: str) -> list[dict]:
         hot_market_col_b = "" if (ncols <= 1 or pd.isna(df.iloc[r, 1])) else str(df.iloc[r, 1]).strip()
         hot_market_col_a = "" if (ncols <= 0 or pd.isna(df.iloc[r, 0])) else str(df.iloc[r, 0]).strip()
         hot_market_col_e = "" if (ncols <= 4 or pd.isna(df.iloc[r, 4])) else str(df.iloc[r, 4]).strip()
+        
+        # BDA format additional fields
+        bda_col_k = "" if (ncols <= 10 or pd.isna(df.iloc[r, 10])) else str(df.iloc[r, 10]).strip()
+        bda_col_l = "" if (ncols <= 11 or pd.isna(df.iloc[r, 11])) else str(df.iloc[r, 11]).strip()
+        bda_col_j = "" if (ncols <= 9 or pd.isna(df.iloc[r, 9])) else str(df.iloc[r, 9]).strip()
 
         # Skip empty or missing-upc rows
         if not upc or not sku:
@@ -365,7 +532,13 @@ def _parse_round21(path: str) -> list[dict]:
             "HotMarketColJ": hot_market_col_j,
             "HotMarketColB": hot_market_col_b,
             "HotMarketColA": hot_market_col_a,
-            "HotMarketColE": hot_market_col_e
+            "HotMarketColE": hot_market_col_e,
+            "BDAColK": bda_col_k,
+            "BDAColL": bda_col_l,
+            "BDAColJ": bda_col_j,
+            "BDAColC": hot_market_col_c,  # Reuse Column C
+            "BDAColB": hot_market_col_b,  # Reuse Column B
+            "BDAColE": hot_market_col_e   # Reuse Column E
         })
     return records
 
@@ -519,7 +692,8 @@ def generate_labels_bundle(
     include_price: bool,
     price_value: Union[str, None],
     out_dir: str,
-    hot_market: bool = False
+    hot_market: bool = False,
+    bda_format: bool = False
 ) -> dict:
     """
     Returns dict with:
@@ -546,7 +720,19 @@ def generate_labels_bundle(
             fname = f"{rec['SKU']}".replace("/", "-").replace("\\", "-").replace(" ", "_")
             out_png = os.path.join(png_dir, f"{fname}.png")
             
-            if hot_market:
+            if bda_format:
+                # Use BDA format
+                render_bda_label(
+                    col_k=rec["BDAColK"],
+                    col_c=rec["BDAColC"],
+                    col_b=rec["BDAColB"],
+                    col_l=rec["BDAColL"],
+                    col_e=rec["BDAColE"],
+                    col_j=rec["BDAColJ"],
+                    upc_input=rec["UPC"],
+                    out_path=out_png
+                )
+            elif hot_market:
                 # Use Hot Market format
                 render_hot_market_label(
                     col_j=rec["HotMarketColJ"],
