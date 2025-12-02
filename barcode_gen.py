@@ -504,13 +504,13 @@ def render_round21_brand_label(
         col_b_w = draw.textbbox((0, 0), col_b_txt, font=row1_font)[2]
         draw.text((canvas_w - margin - col_b_w, row1_y), col_b_txt, font=row1_font, fill="black")
 
-    # Row 2: Centered Column D (smaller font if > 22 characters)
+    # Row 2: Centered Column D (smaller font if > 26 characters)
     col_d_txt = (col_d or "").strip().upper()
     row2_y = row1_y + 120
     
     if col_d_txt:
-        # Use smaller font if text is longer than 22 characters
-        if len(col_d_txt) > 22:
+        # Use smaller font if text is longer than 26 characters
+        if len(col_d_txt) > 26:
             row2_font_small = _load_font(70)  # Smaller font for long text
             row2_w = draw.textbbox((0, 0), col_d_txt, font=row2_font_small)[2]
             draw.text(((canvas_w - row2_w) // 2, row2_y), col_d_txt, font=row2_font_small, fill="black")
