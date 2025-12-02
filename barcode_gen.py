@@ -473,7 +473,7 @@ def render_round21_brand_label(
     - Row 1: Left blank, Right Column B
     - Row 2: Centered Column D
     - Row 3: Centered Column A - Column G (hyphenated)
-    - Bottom: UPC-A barcode (from Column I)
+    - Bottom: UPC-A barcode (from Column H)
     """
     # Build UPC-12 robustly from 11 or 12 digits
     digits = ''.join(c for c in str(upc_input) if c.isdigit())
@@ -591,7 +591,7 @@ def _parse_round21(path: str) -> list[dict]:
             title_val = df.iloc[r, 1] if ncols > 1 else None
         title = "" if title_val is None or pd.isna(title_val) else str(title_val).strip()
         color = "" if (ncols <= 8 or pd.isna(df.iloc[r, 8])) else str(df.iloc[r, 8]).strip()
-        upc_val = df.iloc[r, 8] if ncols > 8 else None
+        upc_val = df.iloc[r, 7] if ncols > 7 else None  # Column H (index 7)
         upc = "" if upc_val is None or pd.isna(upc_val) else str(upc_val).strip()
         price_val = df.iloc[r, 10] if ncols > 10 else None
         price = "" if price_val is None or pd.isna(price_val) else str(price_val).strip()
