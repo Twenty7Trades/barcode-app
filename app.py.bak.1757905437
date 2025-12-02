@@ -1,0 +1,288 @@
+try:
+    import sitecustomize  # optional
+except Exception:
+    pass
+
+import io
+import os
+import re
+import tempfile
+import logging
+from datetime import datetime
+from zipfile import ZipFile, ZIP_DEFLATED
+
+from flask import Flask, render_template, request, send_file, redirect, url_for
+
+# Prefer your project's renderer (barcode_gen)
+RENDER_FN = None
+RENDER_SRC = "fallback"
+try:
+    import barcode_gen as _bg
+    for _name in (
+        "render_label",           # your actual function name
+        "render_barcode_label",
+        "generate_label",
+        "compose_label",
+        "make_label",
+        "draw_label",
+    ):
+        if hasattr(_bg, _name) and callable(getattr(_bg, _name)):
+            RENDER_FN = getattr(_bg, _name)
+            RENDER_SRC = f"barcode_gen.{_name}"
+            break
+except Exception:
+    RENDER_FN = None
+
+app = Flask(__name__)
+app.logger.setLevel(logging.INFO)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret")
+
+# Output directory used for previews and downloads
+OUTPUT_DIR = os.environ.get("OUTPUT_DIR", os.path.join(tempfile.gettempdir(), "barcode_app"))
+
+# Round21 column map (0-based)
+START_ROW = 11  # data starts at human row 12
+SKU_COL, TITLE_COL, COLOR_COL, UPC_COL, PRICE_COL = 0, 2, 8, 9, 10  # K -> 10
+
+SIZE_RE = re.compile(r"-\s*([2-5]X|XS|SM|MD|LG|XL|XXL|XXXL|XXXXL|S|M|L)$", re.I)
+
+def _s(v):
+    if v is None: return ""
+    s = str(v).strip()
+    return "" if s.lower() in ("nan", "none") else s
+
+def _format_price(v):
+    if v is None: return None
+    s = str(v).strip()
+    if s == "" or s.lower() in ("nan", "none"): return None
+    if "$" in s: return s
+    try:
+        return f"${float(s.replace(',', '')):.2f}"
+    except Exception:
+        return s
+
+def _title_with_size(title, sku):
+    t = _s(title)
+    m = SIZE_RE.search(_s(sku))
+    if m:
+        size = m.group(1).upper()
+        if size not in t:
+            return f"{t} - {size}"
+    return t
+
+def parse_round21(df, include_price: bool):
+    """Yield dicts for each valid row; stop when Column A == 'Customer PO'."""
+    items = []
+    nrows, ncols = df.shape
+    for i in range(START_ROW, nrows):
+        a0 = _s(df.iat[i, 0]) if ncols > 0 else ""
+        if a0.lower() == "customer po":
+            break
+        sku   = _s(df.iat[i, SKU_COL])   if ncols > SKU_COL   else ""
+        title = _s(df.iat[i, TITLE_COL]) if ncols > TITLE_COL else ""
+        color = _s(df.iat[i, COLOR_COL]) if ncols > COLOR_COL else ""
+        upc   = _s(df.iat[i, UPC_COL])   if ncols > UPC_COL   else ""
+        if not any([sku, title, color, upc]):
+            continue
+        price = _format_price(df.iat[i, PRICE_COL]) if include_price and ncols > PRICE_COL else None
+        items.append({
+            "sku": sku,
+            "title": _title_with_size(title, sku),
+            "color": color,
+            "upc": upc,
+            "price": price
+        })
+    return items
+
+# Fallback renderer (only used if barcode_gen import fails)
+def _fallback_render_label(sku, title, color, upc, price=None):
+    from PIL import Image, ImageDraw, ImageFont
+    try:
+        from barcode import get_barcode_class
+        from barcode.writer import ImageWriter
+        have_barcode = True
+    except Exception:
+        have_barcode = False
+
+    W, H = 1200, 800
+    img = Image.new("RGB", (W, H), "white")
+    draw = ImageDraw.Draw(img)
+
+    def _tt(sz):
+        try:
+            return ImageFont.truetype("DejaVuSans.ttf", sz)
+        except Exception:
+            return ImageFont.load_default()
+
+    scale = float(os.environ.get("BARCODE_FONT_SCALE", "1.6"))
+    title_font  = _tt(int(40 * scale))
+    meta_font   = _tt(int(26 * scale))
+    digits_font = _tt(int(28 * scale))
+    price_font  = _tt(int(30 * scale))
+
+    draw.text((W//2, 60), title, font=title_font, fill="black", anchor="ma")
+    draw.text((60, 120), sku,   font=meta_font, fill="black", anchor="la")
+    draw.text((W-60,120), color, font=meta_font, fill="black", anchor="ra")
+
+    top = 180
+    if have_barcode and upc:
+        try:
+            bc_type = "upc" if upc and len(upc.strip()) in (11, 12) else "code128"
+            bc = get_barcode_class(bc_type)(upc.strip(), writer=ImageWriter())
+            buf = io.BytesIO()
+            bc.write(buf, options={"module_height": 18.0, "font_size": 0, "text_distance": 1})
+            buf.seek(0)
+            from PIL import Image
+            bar = Image.open(buf).convert("RGB")
+            max_w = W - 160
+            scale_b = min(max_w / bar.width, 3.0)
+            bar = bar.resize((int(bar.width * scale_b), int(bar.height * scale_b)))
+            img.paste(bar, ((W - bar.width)//2, top))
+            draw.text((W//2, top + bar.height + 20), upc, font=digits_font, fill="black", anchor="ma")
+        except Exception:
+            draw.text((W//2, top + 120), upc, font=digits_font, fill="black", anchor="ma")
+    else:
+        draw.text((W//2, top + 120), upc, font=digits_font, fill="black", anchor="ma")
+
+    if price:
+        draw.text((W//2, H-30), str(price), font=price_font, fill="black", anchor="ma")
+    return img
+
+def _overlay_price(img, price):
+    if not price:
+        return img
+    from PIL import ImageDraw, ImageFont
+    draw = ImageDraw.Draw(img)
+    W, H = img.size
+    try:
+        font = ImageFont.truetype("DejaVuSans.ttf", 30)
+    except Exception:
+        font = ImageFont.load_default()
+    draw.text((W//2, H-30), str(price), font=font, fill="black", anchor="ma")
+    return img
+
+def _render_label(sku, title, color, upc, price=None):
+    if RENDER_FN:
+        try:
+            img = RENDER_FN(sku=sku, title=title, color=color, upc=upc, price=price)
+            app.logger.info("Rendered via %s (with price).", RENDER_SRC)
+            return img
+        except TypeError:
+            # legacy signature — no price kwarg
+            img = RENDER_FN(sku=sku, title=title, color=color, upc=upc)
+            img = _overlay_price(img, price)
+            app.logger.info("Rendered via %s (legacy, price overlaid).", RENDER_SRC)
+            return img
+        except Exception as e:
+            app.logger.exception("Internal renderer error: %s", e)
+    app.logger.warning("Using fallback renderer.")
+    return _fallback_render_label(sku, title, color, upc, price)
+
+def _load_table(upload_file):
+    """Read XLSX first, then CSV; treat values as strings."""
+    import pandas as pd
+    data = upload_file.read()
+    if not data:
+        raise ValueError("Empty upload")
+    bio = io.BytesIO(data)
+    try:
+        bio.seek(0)
+        return pd.read_excel(bio, engine="openpyxl", header=None, dtype=str)
+    except Exception:
+        app.logger.info("read_excel failed; trying CSV")
+    bio.seek(0)
+    return pd.read_csv(bio, header=None, dtype=str)
+
+@app.route("/", methods=["GET"])
+def index():
+    return render_template("index.html")
+
+@app.route("/", methods=["POST"])
+@app.route("/upload", methods=["POST"])
+def upload():
+    fmt = (request.form.get("format") or "round21").lower()
+    include_price = bool(request.form.get("include_price"))
+    f = request.files.get("file")
+    if not f:
+        return render_template("index.html", error="No file uploaded")
+
+    try:
+        df = _load_table(f)
+    except Exception as e:
+        return render_template("index.html", error=f"Cannot read spreadsheet: {e}")
+
+    if fmt != "round21":
+        return render_template("index.html", error=f"Unsupported format: {fmt}")
+
+    rows = parse_round21(df, include_price)
+    if not rows:
+        return render_template("index.html", error="No valid rows found.")
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    job = datetime.utcnow().strftime("job-%Y%m%d-%H%M%S")
+    job_dir = os.path.join(OUTPUT_DIR, job)
+    png_dir = os.path.join(job_dir, "png")
+    os.makedirs(png_dir, exist_ok=True)
+
+    paths = []
+    for i, r in enumerate(rows, 1):
+        img = _render_label(r["sku"], r["title"], r["color"], r["upc"], r["price"])
+        base = (r["sku"] or f"item{i}").replace("/", "-")
+        p = os.path.join(png_dir, f"{base}.png")
+        img.save(p, format="PNG", optimize=True)
+        paths.append(p)
+
+    # ZIP
+    zip_path = os.path.join(job_dir, "labels.zip")
+    with ZipFile(zip_path, "w", ZIP_DEFLATED) as zf:
+        for p in paths:
+            zf.write(p, arcname=os.path.basename(p))
+
+    # PDF (multi-page)
+    pdf_path = None
+    try:
+        from PIL import Image
+        imgs = [Image.open(p).convert("RGB") for p in paths]
+        if imgs:
+            pdf_path = os.path.join(job_dir, "labels.pdf")
+            imgs[0].save(pdf_path, save_all=True, append_images=imgs[1:])
+    except Exception as e:
+        app.logger.warning("PDF export failed: %s", e)
+
+    return redirect(url_for("result", job=job))
+
+@app.route("/result/<job>")
+def result(job):
+    png_dir = os.path.join(OUTPUT_DIR, job, "png")
+    if not os.path.isdir(png_dir):
+        return "Not found", 404
+    files = sorted([f for f in os.listdir(png_dir) if f.lower().endswith(".png")])
+    return render_template("result.html", job=job, files=files)
+
+@app.route("/download/<job>/zip")
+def download_zip(job):
+    path = os.path.join(OUTPUT_DIR, job, "labels.zip")
+    if not os.path.exists(path):
+        return "Not found", 404
+    return send_file(path, as_attachment=True, download_name="barcodes.zip")
+
+@app.route("/download/<job>/pdf")
+def download_pdf(job):
+    path = os.path.join(OUTPUT_DIR, job, "labels.pdf")
+    if not os.path.exists(path):
+        return "PDF not available", 404
+    return send_file(path, as_attachment=True, download_name="barcodes.pdf")
+
+@app.route("/preview/<job>/<fname>")
+def preview(job, fname):
+    path = os.path.join(OUTPUT_DIR, job, "png", fname)
+    if not os.path.exists(path):
+        return "Not found", 404
+    return send_file(path, mimetype="image/png")
+
+@app.route("/_which")
+def _which():
+    return {"renderer": RENDER_SRC}, 200
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)

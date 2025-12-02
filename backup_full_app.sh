@@ -65,3 +65,5 @@ ls -lh "$BACKUP_DIR"/saved_labels_*.tar.gz "$BACKUP_DIR"/codebase_*.tar.gz 2>/de
 
 echo "$(date): Backup completed" >> "$BACKUP_DIR/backup.log"
 
+
+

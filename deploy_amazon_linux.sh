@@ -107,5 +107,3 @@ echo "✅ Deployment complete! Your application should be live at http://18.220.
 echo "You can check Gunicorn status with: sudo systemctl status gunicorn.service"
 echo "You can check Nginx status with: sudo systemctl status nginx"
 echo "Gunicorn logs: tail -f $LOG_DIR/gunicorn.log"
-
-

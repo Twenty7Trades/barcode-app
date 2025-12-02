@@ -457,6 +457,101 @@ def render_bda_label(
     return upc12, out_path
 
 
+def render_round21_brand_label(
+    col_a: str,
+    col_b: str,
+    col_d: str,
+    col_g: str,
+    upc_input: str,
+    out_path: str,
+    canvas_w: int = 1400,
+    canvas_h: int = 900,
+    margin: int = 40
+):
+    """
+    Render Round 21 Brand format label:
+    - Row 1: Left blank, Right Column B
+    - Row 2: Centered Column D
+    - Row 3: Centered Column A - Column G (hyphenated)
+    - Bottom: UPC-A barcode (from Column I)
+    """
+    # Build UPC-12 robustly from 11 or 12 digits
+    digits = ''.join(c for c in str(upc_input) if c.isdigit())
+    if len(digits) == 11:
+        upc12 = digits + upc_check_digit(digits)
+    elif len(digits) == 12:
+        upc12 = digits
+    else:
+        raise ValueError(f"UPC must have 11 or 12 digits, got '{upc_input}'")
+    pattern = encode_upc(upc12)
+
+    # Canvas
+    img = Image.new("RGB", (canvas_w, canvas_h), "white")
+    draw = ImageDraw.Draw(img)
+
+    # Fonts
+    row1_font = _load_font(100)
+    row2_font = _load_font(100)
+    row3_font = _load_font(80)
+    digits_font = _load_font(80)
+
+    # Row 1: Left blank, Right Column B
+    col_b_txt = (col_b or "").strip().upper()
+    row1_y = margin
+    
+    # Left side is blank, so only draw Column B on the right
+    if col_b_txt:
+        col_b_w = draw.textbbox((0, 0), col_b_txt, font=row1_font)[2]
+        draw.text((canvas_w - margin - col_b_w, row1_y), col_b_txt, font=row1_font, fill="black")
+
+    # Row 2: Centered Column D
+    col_d_txt = (col_d or "").strip().upper()
+    row2_y = row1_y + 120
+    
+    if col_d_txt:
+        row2_w = draw.textbbox((0, 0), col_d_txt, font=row2_font)[2]
+        draw.text(((canvas_w - row2_w) // 2, row2_y), col_d_txt, font=row2_font, fill="black")
+
+    # Row 3: Centered Column A - Column G (hyphenated)
+    col_a_txt = (col_a or "").strip().upper()
+    col_g_txt = (col_g or "").strip().upper()
+    row3_text = f"{col_a_txt}-{col_g_txt}" if col_a_txt and col_g_txt else (col_a_txt or col_g_txt)
+    row3_y = row2_y + 120
+    
+    if row3_text:
+        row3_w = draw.textbbox((0, 0), row3_text, font=row3_font)[2]
+        draw.text(((canvas_w - row3_w) // 2, row3_y), row3_text, font=row3_font, fill="black")
+
+    # Barcode area - positioned below row 3
+    bar_top = row3_y + 100
+    bar_bottom = bar_top + 280  # Height for barcode bars (280px tall)
+    bar_height = bar_bottom - bar_top
+
+    modules = len(pattern)  # 95
+    module_w = int(max(1, math.floor((canvas_w - 2 * margin) / modules)))
+    total_w = module_w * modules
+    x0 = (canvas_w - total_w) // 2
+
+    guard_extra = int(bar_height * 0.12)
+
+    for i, bit in enumerate(pattern):
+        if bit == '1':
+            is_guard = (i < 3) or (45 <= i < 50) or (modules - 3 <= i < modules)
+            top = bar_top
+            bottom = bar_bottom + (guard_extra if is_guard else 0)
+            draw.rectangle([x0 + i * module_w, top, x0 + (i + 1) * module_w - 1, bottom], fill="black")
+
+    # Human-readable digits centered
+    hr = f"{upc12[0]}  {upc12[1:6]}  {upc12[6:11]}  {upc12[11]}"
+    hr_w = draw.textbbox((0, 0), hr, font=digits_font)[2]
+    digits_y = bar_bottom + guard_extra + 10
+    draw.text(((canvas_w - hr_w) // 2, digits_y), hr, font=digits_font, fill="black")
+
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    img.save(out_path, "PNG")
+    return upc12, out_path
+
+
 # ---------------- Spreadsheet parsing for formats ----------------
 
 def _parse_round21(path: str) -> list[dict]:
@@ -512,6 +607,12 @@ def _parse_round21(path: str) -> list[dict]:
         bda_col_k = "" if (ncols <= 10 or pd.isna(df.iloc[r, 10])) else str(df.iloc[r, 10]).strip()
         bda_col_l = "" if (ncols <= 11 or pd.isna(df.iloc[r, 11])) else str(df.iloc[r, 11]).strip()
         bda_col_j = "" if (ncols <= 9 or pd.isna(df.iloc[r, 9])) else str(df.iloc[r, 9]).strip()
+        
+        # Round 21 Brand format additional fields
+        brand_col_a = "" if (ncols <= 0 or pd.isna(df.iloc[r, 0])) else str(df.iloc[r, 0]).strip()
+        brand_col_b = "" if (ncols <= 1 or pd.isna(df.iloc[r, 1])) else str(df.iloc[r, 1]).strip()
+        brand_col_d = "" if (ncols <= 3 or pd.isna(df.iloc[r, 3])) else str(df.iloc[r, 3]).strip()
+        brand_col_g = "" if (ncols <= 6 or pd.isna(df.iloc[r, 6])) else str(df.iloc[r, 6]).strip()
 
         # Skip empty or missing-upc rows
         if not upc or not sku:
@@ -538,7 +639,11 @@ def _parse_round21(path: str) -> list[dict]:
             "BDAColJ": bda_col_j,
             "BDAColC": hot_market_col_c,  # Reuse Column C
             "BDAColB": hot_market_col_b,  # Reuse Column B
-            "BDAColE": hot_market_col_e   # Reuse Column E
+            "BDAColE": hot_market_col_e,  # Reuse Column E
+            "BrandColA": brand_col_a,
+            "BrandColB": brand_col_b,
+            "BrandColD": brand_col_d,
+            "BrandColG": brand_col_g
         })
     return records
 
@@ -693,7 +798,8 @@ def generate_labels_bundle(
     price_value: Union[str, None],
     out_dir: str,
     hot_market: bool = False,
-    bda_format: bool = False
+    bda_format: bool = False,
+    round21_brand: bool = False
 ) -> dict:
     """
     Returns dict with:
@@ -720,7 +826,17 @@ def generate_labels_bundle(
             fname = f"{rec['SKU']}".replace("/", "-").replace("\\", "-").replace(" ", "_")
             out_png = os.path.join(png_dir, f"{fname}.png")
             
-            if bda_format:
+            if round21_brand:
+                # Use Round 21 Brand format
+                render_round21_brand_label(
+                    col_a=rec["BrandColA"],
+                    col_b=rec["BrandColB"],
+                    col_d=rec["BrandColD"],
+                    col_g=rec["BrandColG"],
+                    upc_input=rec["UPC"],
+                    out_path=out_png
+                )
+            elif bda_format:
                 # Use BDA format
                 render_bda_label(
                     col_k=rec["BDAColK"],

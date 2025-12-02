@@ -27,5 +27,3 @@ echo "📋 Next steps:"
 echo "1. SSH into your EC2 instance: ssh ubuntu@$EC2_IP"
 echo "2. Run the deployment script: cd /home/ubuntu/barcode-app && ./deploy.sh"
 echo "3. Test your application at: http://$EC2_IP"
-
-

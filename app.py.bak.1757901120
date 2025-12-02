@@ -1,0 +1,110 @@
+import sitecustomize
+import os
+import tempfile
+import pandas as pd
+from datetime import datetime
+from zipfile import ZipFile, ZIP_DEFLATED
+
+from flask import (
+    Flask, render_template, request, send_file, redirect, url_for, flash
+)
+
+from barcode_gen import generate_labels_bundle
+
+app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret")  # set in prod
+
+# Storage for generated files (temp). You can point this to EBS/S3 later.
+OUTPUT_DIR = os.environ.get("OUTPUT_DIR", os.path.join(tempfile.gettempdir(), "barcode_app"))
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+@app.route("/", methods=["GET"])
+def index():
+    return render_template("index.html")
+
+
+@app.route("/upload", methods=["POST"])
+def upload():
+    if "file" not in request.files:
+        flash("No file uploaded.")
+        return redirect(url_for("index"))
+
+    upload_file = request.files["file"]
+    if upload_file.filename == "":
+        flash("No selected file.")
+        return redirect(url_for("index"))
+
+    fmt = request.form.get("format", "round21").strip().lower()
+    include_price = bool(request.form.get("include_price"))
+    price_value = request.form.get("price_value", "").strip()
+
+    # Save upload to temp
+    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S_%f")
+    session_dir = os.path.join(OUTPUT_DIR, f"job_{ts}")
+    os.makedirs(session_dir, exist_ok=True)
+    src_path = os.path.join(session_dir, upload_file.filename)
+    upload_file.save(src_path)
+
+    try:
+        # Generate labels (PNGs) + bundle PDF and ZIP
+        results = generate_labels_bundle(
+            xls_or_csv_path=src_path,
+            format_choice=fmt,
+            include_price=include_price,
+            price_value=price_value if include_price and price_value else None,
+            out_dir=session_dir
+        )
+    except Exception as e:
+        # Be explicit so debugging doesn’t eat your life.
+        flash(f"Error while generating labels: {e}")
+        return redirect(url_for("index"))
+
+    return render_template(
+        "result.html",
+        count=len(results["png_paths"]),
+        pdf_path=url_for("download", kind="pdf", job=os.path.basename(session_dir)),
+        zip_path=url_for("download", kind="zip", job=os.path.basename(session_dir)),
+        sample_pngs=[url_for("preview", job=os.path.basename(session_dir), fname=os.path.basename(p)) for p in results["png_paths"][:4]],
+        include_price=include_price,
+        price_value=price_value if include_price and price_value else None
+    )
+
+
+@app.route("/download/<kind>/<job>", methods=["GET"])
+def download(kind, job):
+    session_dir = os.path.join(OUTPUT_DIR, job)
+    if kind == "pdf":
+        path = os.path.join(session_dir, "labels_bundle.pdf")
+    elif kind == "zip":
+        path = os.path.join(session_dir, "labels_png.zip")
+        # zip lazily if not present
+        if not os.path.exists(path):
+            png_dir = os.path.join(session_dir, "png")
+            with ZipFile(path, "w", ZIP_DEFLATED) as zf:
+                for fname in sorted(os.listdir(png_dir)):
+                    if fname.lower().endswith(".png"):
+                        zf.write(os.path.join(png_dir, fname), arcname=fname)
+    else:
+        return "Unknown artifact", 400
+
+    if not os.path.exists(path):
+        return "Not found", 404
+
+    as_name = f"{job}_{os.path.basename(path)}"
+    return send_file(path, as_attachment=True, download_name=as_name)
+
+
+@app.route("/preview/<job>/<fname>")
+def preview(job, fname):
+    # Serve generated PNGs for quick peek
+    path = os.path.join(OUTPUT_DIR, job, "png", fname)
+    if not os.path.exists(path):
+        return "Not found", 404
+    return send_file(path, mimetype="image/png")
+
+
+if __name__ == "__main__":
+    # For local testing only
+    app.run(host="0.0.0.0", port=5000, debug=True)
+

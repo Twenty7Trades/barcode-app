@@ -1,0 +1,149 @@
+{
+  "projectName": "barcode-app",
+  "projectType": "Barcode Scanner App",
+  "urls": {
+    "local": "http://127.0.0.1:5001"
+  },
+  "credentials": {
+    "secretKey": {
+      "location": "app.py (SECRET_KEY config)",
+      "note": "Change in production"
+    }
+  },
+  "deployment": {
+    "platform": "Local Development",
+    "status": "Development"
+  },
+  "notes": [],
+  "sessions": [
+    {
+      "date": "2025-11-10",
+      "title": "V2.8 - SEO Agent System Planning & Sprint UX Improvements",
+      "summary": "Created comprehensive plan for standalone SEO agent system with 25 specialized agents, complete database schema, and 30-week implementation roadmap. Fixed sprint management UX with title fields and screenshot uploads. All tests passing.",
+      "decisions": [
+        "SEO system will be standalone project, not integrated into eSuDC",
+        "Use multi-model LLM strategy: Claude Sonnet 4.5 for complex content, GPT-4o-mini for simple tasks, DeepSeek V3 for bulk variations",
+        "Main site: Next.js 14 on Vercel; Microsites: Hugo static generator on S3+CloudFront",
+        "Target cost: $400/month for entire SEO system",
+        "Sprint titles now required field to prevent irrelevant clarifying questions"
+      ],
+      "files": [
+        "SEO_AGENT_SYSTEM_COMPLETE_PLAN.md (NEW)",
+        "SEO_DATABASE_SCHEMA.md (NEW)",
+        "SEO_QUICK_START.md (NEW)",
+        "app.py (sprint screenshot uploads)",
+        "templates/agent_create_sprint.html (title + screenshots)",
+        "agents/feature_agent.py (removed generic questions)",
+        "backups/V2.8-SEO-Agent-Planning-20251110_222145/"
+      ],
+      "blockers": [],
+      "nextSteps": [
+        "Create seo-agent-system folder with plan files",
+        "Open new Cursor window for SEO system",
+        "Set up AWS account and get credentials",
+        "Get Ahrefs API key ($99/month)",
+        "Begin Phase 1: AWS infrastructure setup"
+      ]
+    },
+    {
+      "date": "2025-11-03",
+      "title": "Notes Agent Global Installation and MCP Server Setup",
+      "summary": "Transformed notes-agent from a project-specific tool into a globally accessible MCP/CLI system. Installed globally to ~/.local/share/notes-agent with a global command accessible from any project. Enhanced the system to support automatic project detection, MCP server integration for AI assistants, and programmatic JSON session entry. Created installation scripts, documentation, and MCP configuration templates.",
+      "decisions": [
+        "Converted notes-agent to global CLI tool accessible from any project",
+        "Created MCP server wrapper (notes_agent_mcp.py) for AI assistant integration",
+        "Implemented auto-detection of project root when running commands",
+        "Added global installation script (install-notes-agent-global.sh)",
+        "Enhanced notes-agent.js to accept JSON input programmatically",
+        "Created project-specific configs while using global tool installation"
+      ],
+      "files": [
+        "notes-agent/notes_agent_mcp.py",
+        "notes-agent/install-notes-agent-global.sh",
+        "notes-agent/GLOBAL_INSTALLATION.md",
+        "notes-agent/QUICK_START.md",
+        "notes-agent/mcp-config.json",
+        "notes-agent/INSTALLATION_GUIDE.md",
+        "notes-agent/notes-agent.js (enhanced)",
+        "notes-agent/config.json (updated)",
+        "package.json (created)"
+      ],
+      "blockers": [
+        "Initial notes-agent was project-specific, requiring manual copying",
+        "Needed to support both interactive and programmatic session entry",
+        "Required global installation with project-specific configuration"
+      ],
+      "nextSteps": [
+        "Use notes-agent globally across all projects",
+        "Integrate with Cursor MCP configuration for seamless AI assistant access",
+        "Generate session summaries automatically at end of work sessions",
+        "Add notes-agent init to new project setup workflow"
+      ]
+    },
+    {
+      "date": "2025-11-04",
+      "title": "Backup Creation and Notes Agent Setup",
+      "summary": "Set up automated session documentation system and created project backup. Enhanced notes-agent to accept JSON input for programmatic session logging. Fixed notes-agent configuration for Flask/Python project and added npm scripts.",
+      "decisions": [
+        "Enhanced notes-agent.js to accept JSON input for automated session entries",
+        "Created package.json with npm scripts for easy command-line access",
+        "Updated config.json with project-specific information (Flask/Python, local URLs, commands)"
+      ],
+      "files": [
+        "notes-agent/notes-agent.js",
+        "notes-agent/config.json",
+        "package.json",
+        "notes-agent/generate_session.py",
+        "backups/V2.7-Existing-Mockup-Normalization-20251102_224500/"
+      ],
+      "blockers": [
+        "Initial notes-agent had old project configuration (stitches-onboarding)",
+        "Needed to add programmatic JSON input support for AI-generated summaries"
+      ],
+      "nextSteps": [
+        "Use npm run notes:session with AI-generated JSON for daily session summaries",
+        "Continue documenting important decisions and blockers as they occur"
+      ]
+    },
+    {
+      "date": "2025-11-04",
+      "title": "Test Session",
+      "summary": "Testing automated session entry",
+      "decisions": [
+        "Test decision"
+      ],
+      "files": [
+        "test.py"
+      ],
+      "blockers": [],
+      "nextSteps": [
+        "Test next steps"
+      ]
+    }
+  ],
+  "deployments": [],
+  "troubleshooting": [],
+  "commands": [
+    "python3 app.py",
+    "source venv/bin/activate && python3 app.py",
+    "python3 run_server.py"
+  ],
+  "documentation": [
+    {
+      "title": "System Overview",
+      "path": "SYSTEM_OVERVIEW.md"
+    },
+    {
+      "title": "Quick Start",
+      "path": "QUICK_START_CHECKLIST.md"
+    },
+    {
+      "title": "Deployment Guide",
+      "path": "DEPLOYMENT_GUIDE.md"
+    },
+    {
+      "title": "Version History",
+      "path": "VERSION_HISTORY.md"
+    }
+  ]
+}

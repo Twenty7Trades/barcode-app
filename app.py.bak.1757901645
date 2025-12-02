@@ -1,0 +1,210 @@
+import io
+import os
+import tempfile
+from datetime import datetime
+from zipfile import ZipFile, ZIP_DEFLATED
+
+from flask import (
+    Flask, render_template, request, send_file, url_for
+)
+
+# Try to use project's barcode renderer if present
+HAVE_INTERNAL = False
+try:
+    from barcode_gen import render_barcode_label  # expected signature: (sku, title, color, upc, price=None) -> PIL.Image
+    HAVE_INTERNAL = True
+except Exception:
+    # We'll fall back to a built-in simple renderer below
+    HAVE_INTERNAL = False
+
+app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret")
+
+# Where to stash generated artifacts (also used by preview route)
+OUTPUT_DIR = os.environ.get("OUTPUT_DIR", os.path.join(tempfile.gettempdir(), "barcode_app"))
+
+# Round21 sheet layout (0-based indices)
+START_ROW = 11  # values start at human Row 12
+SKU_COL, TITLE_COL, COLOR_COL, UPC_COL, PRICE_COL = 0, 2, 8, 9, 10  # K is 10
+
+def _s(val):
+    if val is None:
+        return ""
+    s = str(val).strip()
+    return "" if s.lower() in ("nan", "none") else s
+
+def _format_price(val):
+    if val is None:
+        return None
+    s = str(val).strip()
+    if s == "" or s.lower() in ("nan", "none"):
+        return None
+    if "$" in s:
+        return s
+    try:
+        num = float(s.replace(",", ""))
+        return f"${num:.2f}"
+    except Exception:
+        return s
+
+def parse_round21(frame, include_price: bool):
+    """Yield dicts for each row until Column A == 'Customer PO'. Skip empty rows."""
+    items = []
+    nrows, ncols = frame.shape
+    for idx in range(START_ROW, nrows):
+        stop_flag = _s(frame.iat[idx, 0]) if ncols > 0 else ""
+        if stop_flag.lower() == "customer po":
+            break
+
+        sku   = _s(frame.iat[idx, SKU_COL])   if ncols > SKU_COL   else ""
+        title = _s(frame.iat[idx, TITLE_COL]) if ncols > TITLE_COL else ""
+        color = _s(frame.iat[idx, COLOR_COL]) if ncols > COLOR_COL else ""
+        upc   = _s(frame.iat[idx, UPC_COL])   if ncols > UPC_COL   else ""
+
+        if not any([sku, title, color, upc]):
+            continue
+
+        price = None
+        if include_price and ncols > PRICE_COL:
+            price = _format_price(frame.iat[idx, PRICE_COL])
+
+        items.append({"sku": sku, "title": title, "color": color, "upc": upc, "price": price})
+    return items
+
+# Fallback renderer if project one isn't available
+def _fallback_render_label(sku, title, color, upc, price=None):
+    from PIL import Image, ImageDraw, ImageFont
+    try:
+        from barcode import get_barcode_class
+        from barcode.writer import ImageWriter
+        have_barcode = True
+    except Exception:
+        have_barcode = False
+
+    # Canvas
+    W, H = 1200, 800
+    img = Image.new("RGB", (W, H), "white")
+    draw = ImageDraw.Draw(img)
+
+    # Fonts (sitecustomize may patch truetype/load_default and scale)
+    def _tt(size):
+        try:
+            return ImageFont.truetype("DejaVuSans.ttf", size)
+        except Exception:
+            return ImageFont.load_default()
+
+    SCALE = float(os.environ.get("BARCODE_FONT_SCALE", "1.6"))
+    title_font  = _tt(int(40 * SCALE))
+    meta_font   = _tt(int(26 * SCALE))
+    digits_font = _tt(int(28 * SCALE))
+    price_font  = _tt(int(30 * SCALE))
+
+    # Title center
+    draw.text((W // 2, 60), title, fill="black", font=title_font, anchor="ma")
+    # Line 2: SKU left, Color right
+    draw.text((60, 120), sku, fill="black", font=meta_font, anchor="la")
+    draw.text((W - 60, 120), color, fill="black", font=meta_font, anchor="ra")
+
+    # Barcode area
+    top = 180
+    if have_barcode and upc:
+        try:
+            bc_type = "upc" if upc and len(upc.strip()) in (11, 12) else "code128"
+            bc_cls = get_barcode_class(bc_type)
+            bc = bc_cls(upc.strip(), writer=ImageWriter())
+            out = io.BytesIO()
+            bc.write(out, options={"module_height": 18.0, "font_size": 0, "text_distance": 1})
+            out.seek(0)
+            bar = Image.open(out).convert("RGB")
+            # scale barcode to fit width margins
+            max_w = W - 160
+            scale = min(max_w / bar.width, 3.0)
+            new = bar.resize((int(bar.width * scale), int(bar.height * scale)))
+            bx = (W - new.width) // 2
+            img.paste(new, (bx, top))
+            # human readable below bars
+            draw.text((W // 2, top + new.height + 20), upc, fill="black", font=digits_font, anchor="ma")
+        except Exception:
+            draw.text((W // 2, top + 120), upc, fill="black", font=digits_font, anchor="ma")
+    else:
+        draw.text((W // 2, top + 120), upc, fill="black", font=digits_font, anchor="ma")
+
+    # Price bottom-center if provided
+    if price:
+        draw.text((W // 2, H - 30), str(price), fill="black", font=price_font, anchor="ma")
+
+    return img
+
+def _render_label(sku, title, color, upc, price=None):
+    if HAVE_INTERNAL:
+        return render_barcode_label(sku=sku, title=title, color=color, upc=upc, price=price)
+    return _fallback_render_label(sku, title, color, upc, price)
+
+@app.route("/", methods=["GET"])
+def index():
+    return render_template("index.html")
+
+@app.route("/", methods=["POST"])
+@app.route("/upload", methods=["POST"])
+def upload():
+    fmt = (request.form.get("format") or "round21").lower()
+    include_price = bool(request.form.get("include_price"))
+    f = request.files.get("file")
+    if not f:
+        return render_template("index.html", error="No file uploaded")
+
+    # Parse file into DataFrame
+    import pandas as pd
+    filename = f.filename or ""
+    if filename.lower().endswith(".csv"):
+        df = pd.read_csv(f, header=None)
+    else:
+        df = pd.read_excel(f, engine="openpyxl", header=None)
+
+    if fmt != "round21":
+        return render_template("index.html", error=f"Unsupported format: {fmt}")
+
+    rows = parse_round21(df, include_price)
+
+    # Create job dir
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    job = datetime.utcnow().strftime("job-%Y%m%d-%H%M%S")
+    job_dir = os.path.join(OUTPUT_DIR, job)
+    png_dir = os.path.join(job_dir, "png")
+    os.makedirs(png_dir, exist_ok=True)
+
+    # Render and zip
+    zip_buf = io.BytesIO()
+    with ZipFile(zip_buf, "w", ZIP_DEFLATED) as zf:
+        for i, r in enumerate(rows, 1):
+            img = _render_label(r["sku"], r["title"], r["color"], r["upc"], r["price"])
+            # filename
+            base = r["sku"] or f"item{i}"
+            base = base.replace("/", "-")
+            png_path = os.path.join(png_dir, f"{base}.png")
+            img.save(png_path, format="PNG", optimize=True)
+
+            # also add to zip
+            out_io = io.BytesIO()
+            img.save(out_io, format="PNG", optimize=True)
+            zf.writestr(f"{base}.png", out_io.getvalue())
+
+    zip_buf.seek(0)
+    # stash a copy on disk too
+    zip_path = os.path.join(job_dir, "labels.zip")
+    with open(zip_path, "wb") as fp:
+        fp.write(zip_buf.getbuffer())
+
+    # send zip to client
+    return send_file(io.BytesIO(zip_buf.getvalue()), mimetype="application/zip",
+                     as_attachment=True, download_name="barcodes.zip")
+
+@app.route("/preview/<job>/<fname>")
+def preview(job, fname):
+    path = os.path.join(OUTPUT_DIR, job, "png", fname)
+    if not os.path.exists(path):
+        return "Not found", 404
+    return send_file(path, mimetype="image/png")
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)

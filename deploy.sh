@@ -117,5 +117,3 @@ echo "1. Update your domain name in /etc/nginx/sites-available/barcode-app"
 echo "2. Set up SSL certificate with Let's Encrypt (optional)"
 echo "3. Configure your security groups to allow HTTP (port 80) and HTTPS (port 443)"
 echo "4. Test your application at http://your-ec2-public-ip"
-
-

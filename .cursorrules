@@ -1,0 +1,523 @@
+# ============================================================================
+# AGENT TASK SYSTEM INTEGRATION
+# ============================================================================
+
+## Task Management Keywords
+When the user says ANY of these phrases:
+- "check agent tasks"
+- "check agent task"
+- "next task"
+- "next agent task"
+- "pull next task"
+- "what's next"
+- "agent queue"
+
+Then you MUST:
+1. Run: python3 next_task.py
+2. Read the entire output carefully
+3. Identify the task type (troubleshooter, feature, testing, site_monitor)
+4. Acknowledge the task to the user: "I found a [TYPE] task: [TITLE]"
+5. Immediately begin working on the task following the instructions shown
+6. DO NOT wait for further instruction - start investigating/working
+7. Provide regular updates as you work
+8. When complete, tell user: "Task complete! Run: python3 complete_task.py --summary 'your summary here'"
+
+## Task Completion
+When the user approves your work and you're ready to mark complete:
+- Remind them to run: python3 complete_task.py --summary "brief description of what you did"
+- Or if needs review: python3 complete_task.py --approval --summary "description"
+
+## Task Investigation Guidelines
+
+### For Troubleshooting Tasks:
+1. Visit the route mentioned (if web-related)
+2. Check console in DevTools for errors
+3. Read the relevant code files (app.py, templates, etc.)
+4. Search for error messages in logs
+5. Trace the error to root cause
+6. Propose specific fix with code changes
+7. Explain reasoning clearly
+
+### For Feature Tasks:
+1. Read the feature description carefully
+2. Review existing similar features in codebase
+3. Plan implementation (routes, templates, database)
+4. Follow existing code patterns and style
+5. Implement step by step
+6. Test the feature works
+7. Document what you built
+
+### For Testing Tasks:
+1. Understand what code needs testing
+2. Write pytest test cases
+3. Run tests and show results
+4. Fix any failures
+
+### For Site Monitor Tasks:
+1. Visit the specified route
+2. Check for console errors
+3. Verify page loads correctly
+4. Report any issues found
+
+## Task Workflow Example
+User: "check agent tasks"
+You: "I found a troubleshooting task: Fix error on /admin page
+      Investigating now...
+      [Read app.py lines 2780-2800]
+      [Visit /admin route]
+      Found the issue: get_current_user() returns None...
+      [Continue investigation and propose fix]"
+
+## Important Rules
+- ALWAYS run next_task.py when asked
+- ALWAYS read the full task details before starting
+- ALWAYS provide progress updates
+- ALWAYS explain your reasoning
+- NEVER skip the investigation phase
+- NEVER make assumptions without checking code
+- ALWAYS remind user to run complete_task.py when done
+
+## Database Location
+- Database path: mockup_learning.db
+- All agent tasks are in the agent_tasks table
+- Sprint information in agent_sprints table
+
+
+# ============================================================================
+# SESSION SUMMARY & INFORMATION PRESERVATION
+# ============================================================================
+
+## Session Summary System - CRITICAL
+This project has a GLOBAL notes-agent system installed.
+
+### When User Says Session Summary Keywords:
+- "take a session summary"
+- "save session summary"
+- "document this session"
+- "create session entry"
+- "save this session"
+- "save work"
+- "document work"
+
+Then you MUST use the notes-agent command to save the session.
+
+### Command Format:
+```bash
+notes-agent session --json '{
+  "title": "YYYY-MM-DD - Brief Title",
+  "summary": "Detailed summary of work accomplished",
+  "decisions": ["Key decision 1", "Key decision 2"],
+  "files": ["file1.py", "file2.js"],
+  "blockers": ["Any blocker encountered"],
+  "nextSteps": ["Next step 1", "Next step 2"]
+}'
+```
+
+### Session Summary Rules - CRITICAL:
+- **ALWAYS save session summaries to SESSION_LOG.md**
+- Save BEFORE major changes (create restore point)
+- Save AFTER completing significant work
+- Save AT END of every session (preserve chat history)
+- Include ALL modified files in the "files" array
+- Document WHY decisions were made, not just WHAT
+
+### What to Include in Summaries:
+✅ What was accomplished
+✅ Why decisions were made (architecture choices)
+✅ What files were changed and why
+✅ Any bugs/issues discovered
+✅ Any technical debt created
+✅ Next steps and incomplete work
+✅ Performance considerations
+✅ Security considerations
+
+### What NOT to Include:
+❌ Sensitive credentials
+❌ API keys
+❌ User passwords
+
+
+# ============================================================================
+# BACKUP & VERSION CONTROL - CRITICAL
+# ============================================================================
+
+## Backup Requirements - MANDATORY
+
+### WHEN to Create Backups:
+
+#### 1. BEFORE Major Changes (Immediate):
+Always create a backup BEFORE:
+- Database schema changes
+- Refactoring core functionality
+- Upgrading dependencies
+- Changing authentication/security
+- Modifying payment processing
+- Changing file upload logic
+- Modifying image processing
+- Large code refactors
+- Deleting significant code
+
+#### 2. TIME-BASED (Every 48 Hours with Changes):
+**At the START of every session:**
+- Check backup age: `python3 scripts/check_backup_age.py`
+- If exit code is 2 (backup needed), create time-based backup
+- Auto-backup will be SKIPPED if:
+  * Last backup is less than 48 hours old
+  * No files have changed in 48 hours
+  * No git commits in 48 hours
+
+### Quick Backup Commands:
+
+```bash
+# Check if backup is needed (run at session start)
+python3 scripts/check_backup_age.py
+
+# Create backup (auto-versions, auto-timestamps)
+python3 scripts/create_backup.py
+
+# Create backup with custom description
+python3 scripts/create_backup.py "BeforeAuthRefactor"
+```
+
+### Backup Features:
+✅ Auto-increments version numbers (V1.0, V1.1, V1.2...)
+✅ Timestamps every backup
+✅ Copies all critical files and directories
+✅ Shows backup size and file count
+✅ Safe - never overwrites existing backups
+
+### Backup Naming Convention:
+- Format: `V{VERSION}-{DESCRIPTION}-{TIMESTAMP}`
+- Example: `V2.9-AuthRefactor-20251115_143022`
+- Auto-generated by script
+- ALWAYS use descriptive names
+
+### Git Commit Rules:
+- Commit BEFORE major changes
+- Commit AFTER completing features
+- Use descriptive commit messages
+- Include affected files/systems
+- Use `git commit --no-verify` if pre-commit hook fails
+- NEVER commit sensitive data
+
+### Commit Message Format:
+```
+Type: Brief description (50 chars max)
+
+Detailed explanation of:
+- What changed and why
+- Impact on other systems
+- Testing performed
+- Breaking changes (if any)
+
+Files modified: file1.py, file2.js
+```
+
+Types: Fix, Feature, Refactor, Test, Docs, Style, Perf, Chore
+
+
+# ============================================================================
+# TESTING REQUIREMENTS
+# ============================================================================
+
+## Test Before Committing
+
+### ALWAYS Run Tests Before:
+- Committing to git
+- Deploying to production
+- Merging feature branches
+- Major refactors
+
+### Test Commands:
+```bash
+# 1. Smoke Tests (Quick - 30 seconds)
+python3 tests/smoke/smoke_tests.py
+
+# 2. Integration Tests (Full - 3-5 minutes)
+pytest tests/integration/ -v
+
+# 3. Specific Test Suite
+pytest tests/integration/test_mockup_workflow.py -v
+```
+
+### When Tests Fail:
+1. DO NOT commit failing code
+2. Investigate the failure
+3. Fix the root cause (not the test)
+4. Re-run tests to verify
+5. Document what was broken and how you fixed it
+
+### Test Coverage Requirements:
+- Critical paths: 100% (auth, payments, uploads)
+- Core features: 80%
+- UI/Display: 50%
+
+
+# ============================================================================
+# CRITICAL FILE PROTECTION
+# ============================================================================
+
+## Files That Require Extra Caution
+
+### Database Files:
+- `database.py` - Core database operations
+- `mockup_learning.db` - Production database
+- **ALWAYS backup before schema changes**
+- **ALWAYS test queries before executing**
+- **NEVER delete data without confirmation**
+
+### Authentication/Security:
+- `app.py` (login_required, admin_required decorators)
+- User session management
+- Password hashing
+- **NEVER weaken security for convenience**
+- **ALWAYS test auth changes thoroughly**
+
+### Payment/Money:
+- Pricing calculations
+- Order totals
+- Work order costs
+- **ALWAYS verify math is correct**
+- **NEVER round incorrectly**
+- **ALWAYS test with edge cases**
+
+### File Upload/Processing:
+- `mockup_generator.py` - Mockup generation
+- `layer_mockup_generator.py` - Multi-layer mockups
+- File upload endpoints in `app.py`
+- **ALWAYS validate file types**
+- **ALWAYS check file sizes**
+- **NEVER execute uploaded files**
+
+### Configuration:
+- `requirements.txt` - Python dependencies
+- `.gitignore` - Keep secrets out of git
+- `.env` - Environment variables
+- **NEVER commit secrets**
+- **ALWAYS use environment variables**
+
+
+# ============================================================================
+# DOCUMENTATION REQUIREMENTS
+# ============================================================================
+
+## Update Documentation When:
+- Adding new features
+- Changing APIs or endpoints
+- Modifying database schema
+- Changing configuration
+- Adding new dependencies
+- Changing deployment process
+
+## Documentation Files:
+- `SESSION_LOG.md` - Session summaries (auto-updated)
+- `PROJECT_NOTES.md` - Architecture decisions
+- `DEPLOYMENT_LOG.md` - Deployment history
+- `README.md` - Setup instructions
+- Inline code comments for complex logic
+
+
+# ============================================================================
+# ERROR HANDLING & LOGGING
+# ============================================================================
+
+## When Errors Occur:
+1. Check logs:
+   - `logs/dev-server.log`
+   - `logs/agent_daemon.log`
+   - Browser console (F12)
+2. Document the error in session summary
+3. Create agent task if needed: `python3 create_troubleshoot_task.py`
+4. Fix root cause (not symptoms)
+5. Add test to prevent regression
+
+## Logging Standards:
+- Use appropriate log levels (ERROR, WARNING, INFO, DEBUG)
+- Include context (user_id, file_path, etc.)
+- Log entry/exit of critical functions
+- Never log sensitive data (passwords, API keys)
+
+
+# ============================================================================
+# EMERGENCY RECOVERY
+# ============================================================================
+
+## If Something Breaks:
+
+### Step 1: Assess Damage
+- What's broken?
+- Can users access the site?
+- Is data corrupted?
+
+### Step 2: Immediate Mitigation
+- Revert to last known good commit: `git reset --hard HEAD~1`
+- Or restore from backup:
+  ```bash
+  # Find latest backup
+  ls -lt backups/ | head -5
+  
+  # Restore from backup
+  python3 scripts/restore_backup.py backups/V2.X-Name-Timestamp
+  ```
+- Restart server if needed
+
+### Step 3: Root Cause Analysis
+- Check git diff: `git diff HEAD~1`
+- Check recent changes in SESSION_LOG.md
+- Review agent tasks that were recently completed
+
+### Step 4: Proper Fix
+- Create proper fix (don't just revert)
+- Test thoroughly
+- Create backup before re-applying
+- Document what went wrong
+
+
+# ============================================================================
+# WORKFLOW SUMMARY - EVERY SESSION
+# ============================================================================
+
+## 🚀 Before Starting Work:
+1. **Check backup age**: `python3 scripts/check_backup_age.py`
+2. Check agent tasks: `python3 next_task.py`
+3. Pull latest code (if using git branches)
+4. Run smoke tests to verify current state
+
+## 💻 During Work:
+1. Make incremental changes
+2. Test frequently
+3. Commit working states
+4. Document decisions in comments
+
+## ✅ After Completing Work:
+1. Run smoke tests: `python3 tests/smoke/smoke_tests.py`
+2. Run integration tests if needed
+3. Create session summary: Use notes-agent command
+4. Commit changes: `git commit -m "..."`
+5. Create backup if major changes: `python3 scripts/create_backup.py`
+
+## 📝 End of Session - MANDATORY:
+1. **ALWAYS create session summary** (preserve chat history)
+2. Ensure all work is committed to git
+3. Note any incomplete work in "nextSteps"
+4. Document any blockers encountered
+
+
+# ============================================================================
+# AI ASSISTANT BEHAVIOR RULES
+# ============================================================================
+
+## Session Start Behavior - CRITICAL:
+**At the beginning of EVERY NEW CHAT SESSION:**
+
+### Step 1: Check Backup Status
+1. Run: `python3 scripts/check_backup_age.py`
+2. If exit code is 2, inform user backup is needed
+3. Offer to create backup automatically
+
+### Step 2: Restore Session Context (AUTOMATIC)
+1. **Read SESSION_LOG.md** to find the most recent session
+2. **If a recent session exists (within last 7 days):**
+   - Show user a brief summary:
+     ```
+     📋 Welcome back!
+     
+     Last session: [date] - [title]
+     What you did: [brief summary]
+     Next steps: [list next steps]
+     Blockers: [any blockers]
+     
+     Ready to pick up where you left off?
+     ```
+3. **If user says yes or mentions continuing:**
+   - Proactively start on the next steps
+   - Reference files that were changed
+   - Continue the work seamlessly
+
+### Step 3: Offer Server Startup (If Applicable)
+- If this is a web project with a server, ask:
+  - "Would you like me to start the development server?"
+  - Suggest the appropriate command (e.g., `python3 app.py`, `npm start`, etc.)
+
+### Session Resume Keywords:
+When user says ANY of these, restore session context:
+- "catch me up"
+- "where was i"
+- "what's next"
+- "resume"
+- "continue"
+- "pick up where we left off"
+- "what did i do last time"
+- "refresh my memory"
+
+**Then automatically:**
+1. Read SESSION_LOG.md
+2. Show last session summary
+3. Offer to continue from next steps
+
+## General Behavior:
+- Be proactive: suggest improvements
+- Be cautious: backup before major changes
+- Be thorough: test your changes
+- Be clear: explain your reasoning
+- Be efficient: use parallel tool calls when possible
+
+## When Uncertain:
+- ASK the user before making irreversible changes
+- SUGGEST options rather than choosing arbitrarily
+- TEST in a safe way before committing
+- DOCUMENT your assumptions
+
+## Communication Style:
+- Use clear, structured formatting
+- Provide context for decisions
+- Include commands user can run
+- Show what you're checking/testing
+- Explain WHY, not just WHAT
+
+
+# ============================================================================
+# PROJECT-SPECIFIC PATHS
+# ============================================================================
+
+## Important Directories:
+- `/Applications/LLM-Generator1.0 2/` - Production code (running server)
+- `~/.cursor/worktrees/.../eSuDC/` - Worktree (Cursor workspace)
+- `tests/smoke/` - Quick health checks
+- `tests/integration/` - Full workflow tests
+- `agents/` - Autonomous agent system
+- `templates/` - Jinja2 templates
+- `static/` - CSS, JS, images
+- `logs/` - Application logs
+- `backups/` - Version backups
+- `scripts/` - Utility scripts
+
+## Key Files:
+- `app.py` - Main Flask application (6000+ lines)
+- `database.py` - Database operations
+- `mockup_generator.py` - Image processing
+- `mockup_learning.db` - SQLite database
+- `SESSION_LOG.md` - Session history
+- `requirements.txt` - Python dependencies
+- `.cursorrules` - This file (AI behavior rules)
+
+
+# ============================================================================
+# REMEMBER: INFORMATION PRESERVATION IS CRITICAL
+# ============================================================================
+
+## The THREE Most Important Rules:
+
+1. **ALWAYS check backup age at session start**
+   - Run: `python3 scripts/check_backup_age.py`
+   - Create backup if needed (48+ hours + changes)
+
+2. **ALWAYS save session summaries**
+   - Use notes-agent at end of every session
+   - Preserve chat history
+
+3. **ALWAYS create backups before major changes**
+   - Use: `python3 scripts/create_backup.py "Description"`
+   - Enable recovery
+
+Everything else supports these three goals.

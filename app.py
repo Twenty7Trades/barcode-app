@@ -62,6 +62,7 @@ def upload():
     include_price = bool(request.form.get("include_price"))
     hot_market = bool(request.form.get("hot_market"))
     bda_format = bool(request.form.get("bda_format"))
+    round21_brand = bool(request.form.get("round21_brand"))
 
     # Save upload to temp
     ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S_%f")
@@ -82,7 +83,8 @@ def upload():
             price_value=None,  # Individual prices now come from Column K
             out_dir=session_dir,
             hot_market=hot_market,
-            bda_format=bda_format
+            bda_format=bda_format,
+            round21_brand=round21_brand
         )
     except Exception as e:
         # Be explicit so debugging doesn't eat your life.

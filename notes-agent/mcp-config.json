@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "notes-agent": {
+      "command": "python3",
+      "args": [
+        "/path/to/notes-agent/notes_agent_mcp.py",
+        "mcp"
+      ],
+      "env": {
+        "NOTES_AGENT_HOME": "/Applications/LLM-Generator1.0 2/notes-agent"
+      }
+    }
+  }
+}
+
+
