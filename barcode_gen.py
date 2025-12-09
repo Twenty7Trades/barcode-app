@@ -578,7 +578,11 @@ def _parse_round21(path: str) -> list[dict]:
     if path.lower().endswith(".csv"):
         df = pd.read_csv(path, header=None)
     else:
-        df = pd.read_excel(path, header=None)
+        # Read Excel file - try with openpyxl engine first, fall back to default
+        try:
+            df = pd.read_excel(path, header=None, engine='openpyxl')
+        except Exception:
+            df = pd.read_excel(path, header=None)
 
     start_row = 11
     records = []
