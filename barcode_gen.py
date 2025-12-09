@@ -587,9 +587,6 @@ def _parse_round21(path: str) -> list[dict]:
     start_row = 11
     records = []
     nrows, ncols = df.shape
-    
-    # Debug: log file dimensions
-    print(f"DEBUG: File has {nrows} rows, {ncols} columns")
 
     for r in range(start_row, nrows):
         a_val = df.iloc[r, 0] if 0 < ncols else None
@@ -668,11 +665,6 @@ def _parse_round21(path: str) -> list[dict]:
             "BrandColG": brand_col_g
         }
         records.append(record)
-        # Debug: log first few records
-        if len(records) <= 3:
-            print(f"DEBUG: Record {len(records)} - Row {r+1}: SKU={sku}, UPC={upc}, BrandColB={brand_col_b}, BrandColD={brand_col_d}")
-    
-    print(f"DEBUG: Total records parsed: {len(records)}")
     return records
 
 
@@ -849,8 +841,6 @@ def generate_labels_bundle(
     os.makedirs(png_dir, exist_ok=True)
     png_paths = []
 
-    print(f"DEBUG: Generating labels for {len(records)} records, round21_brand={round21_brand}")
-    
     for idx, rec in enumerate(records):
         if format_choice == "round21":
             # Use index to ensure unique filenames even if SKU is duplicate
@@ -858,10 +848,6 @@ def generate_labels_bundle(
             if idx > 0:  # Add index for duplicates
                 fname = f"{fname}_{idx}"
             out_png = os.path.join(png_dir, f"{fname}.png")
-            
-            # Debug: log what we're rendering
-            if idx < 3:
-                print(f"DEBUG: Rendering label {idx+1}: SKU={rec.get('SKU')}, UPC={rec.get('UPC')}, BrandColB={rec.get('BrandColB')}, BrandColD={rec.get('BrandColD')}")
             
             if round21_brand:
                 # Use Round 21 Brand format
