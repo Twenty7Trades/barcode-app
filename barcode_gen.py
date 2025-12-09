@@ -616,7 +616,16 @@ def _parse_round21(path: str) -> list[dict]:
         
         # Round 21 Brand format additional fields
         brand_col_a = "" if (ncols <= 0 or pd.isna(df.iloc[r, 0])) else str(df.iloc[r, 0]).strip()
-        brand_col_b = "" if (ncols <= 1 or pd.isna(df.iloc[r, 1])) else str(df.iloc[r, 1]).strip()
+        # Column B (index 1) - ensure we get the actual value, not row number
+        if ncols <= 1:
+            brand_col_b = ""
+        else:
+            col_b_val = df.iloc[r, 1]
+            if pd.isna(col_b_val):
+                brand_col_b = ""
+            else:
+                # Convert to string, handling numeric values properly
+                brand_col_b = str(col_b_val).strip()
         brand_col_d = "" if (ncols <= 3 or pd.isna(df.iloc[r, 3])) else str(df.iloc[r, 3]).strip()
         brand_col_g = "" if (ncols <= 6 or pd.isna(df.iloc[r, 6])) else str(df.iloc[r, 6]).strip()
 
